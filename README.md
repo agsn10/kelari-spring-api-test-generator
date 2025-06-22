@@ -261,7 +261,45 @@ public class GetExampleDataLoad200 implements DataLoad {
 }
 ```
 
-### 3. Resultado Gerado (exemplo de teste):
+### 3. 🔧 Customização de Matchers
+
+O Kelari permite o uso de **Matchers personalizados** com Hamcrest, possibilitando validações específicas que vão além dos matchers padrão.
+
+Essa abordagem é útil quando se deseja expressar lógicas mais específicas ou reutilizar regras de validação complexas em diferentes testes.
+
+### 📌 Exemplo: Matcher personalizado `IsJohnMatcher`
+
+```java
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+
+public class IsJohnMatcher extends BaseMatcher<String> {
+
+    @Override
+    public boolean matches(Object item) {
+        return "John".equals(item);
+    }
+
+    @Override
+    public void describeTo(Description description) {
+        description.appendText("a string equal to 'John'");
+    }
+
+    public static Matcher<String> isJohn() {
+        return new IsJohnMatcher();
+    }
+}
+
+✅ Utilização no Kelari
+
+// CUSTOM_CLASS: matcher Java personalizado
+@JsonPath(path = "$.name", type = MatcherType.CUSTOM_CLASS, matcherClass = IsJohnMatcher.class)
+
+ℹ️ Importante: Certifique-se de que a classe do matcher esteja disponível no classpath do projeto onde os testes gerados são executados.
+
+```
+### 4. Resultado Gerado (exemplo de teste):
 
 ```java
 @SpringBootTest(
