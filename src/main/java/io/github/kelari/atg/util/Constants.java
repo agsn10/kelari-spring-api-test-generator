@@ -36,6 +36,22 @@ public final class Constants {
         public static final String PATCH_MAPPING = "PatchMapping";
         public static final String HEAD_MAPPING = "HeadMapping";
     }
+
+    public final class AnnotationFileds {
+        public static final String DISPLAY_NAME = "displayName";
+        public static final String ORDER = "order";
+        public static final String TIMEOUT = "timeout";
+        public static final String EXPECTED_STATUS_CODE = "expectedStatusCode";
+        public static final String REQUIRES_AUTH = "requiresAuth";
+        public static final String DATA_PROVIDER_CLASS_NAME = "dataProviderClassName";
+        public static final String REPEAT = "repeat";
+        public static final String ENABLE_LOGGING = "enableLogging";
+        public static final String RESPONSE_TIMEOUT_SECONDS = "responseTimeoutSeconds";
+        public static final String EXPECTED_HEADERS = "expectedHeaders";
+        public static final String EXPECTED_COOKIES = "expectedCookies";
+        public static final String JSON_PATHS = "jsonPaths";
+    }
+
     public final class ParameterAnnotation {
         public static final String PATH_VARIABLE = "org.springframework.web.bind.annotation.PathVariable";
         public static final String REQUEST_PARAM = "org.springframework.web.bind.annotation.RequestParam";
@@ -82,11 +98,20 @@ public final class Constants {
         public static final ClassName ORDER = ClassName.get("org.junit.jupiter.api", "Order");
         public static final ClassName TIMEOUT = ClassName.get("org.junit.jupiter.api", "Timeout");
         public static final ClassName DISPLAY_NAME = ClassName.get("org.junit.jupiter.api", "DisplayName");
+        public static final ClassName REPEAT = ClassName.get("org.junit.jupiter.api", "RepeatedTest");
         public static final ClassName BEFORE_EACH = ClassName.get("org.junit.jupiter.api", "BeforeEach");
+        public static final ClassName MATCHERS = ClassName.get("org.hamcrest", "Matchers");
+        public static final ClassName BEFORE_ALL = ClassName.get("org.junit.jupiter.api", "BeforeAll");
+
+        public static final ClassName MATCHER_REGISTRY = ClassName.get("io.github.kelari.atg.annotation", "MatcherRegistry");
+
+        public static final ClassName DURATION = ClassName.get("java.time", "Duration");
+
         // Spring WebFlux
         public static final ClassName BODY_INSERTERS = ClassName.get("org.springframework.web.reactive.function", "BodyInserters");
         // Spring Web Test Client
         public static final ClassName WEB_TEST_CLIENT = ClassName.get("org.springframework.test.web.reactive.server", "WebTestClient");
+        public static final ClassName EXCHANGE_FILTER_FUNCTION = ClassName.get("org.springframework.web.reactive.function.client", "ExchangeFilterFunction");
         // Spring Autowired
         public static final ClassName AUTOWIRED = ClassName.get("org.springframework.beans.factory.annotation", "Autowired");
         // Spring Boot Test WebClient

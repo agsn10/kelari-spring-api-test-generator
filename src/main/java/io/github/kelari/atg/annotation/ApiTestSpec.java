@@ -1,5 +1,7 @@
 package io.github.kelari.atg.annotation;
 
+import io.github.kelari.atg.annotation.defaults.NoOpSetup;
+
 import java.lang.annotation.*;
 
 /**

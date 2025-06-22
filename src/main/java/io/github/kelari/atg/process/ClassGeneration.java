@@ -14,6 +14,7 @@ import javax.tools.Diagnostic;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.Predicate;
@@ -42,45 +43,33 @@ import java.util.function.Predicate;
  */
 public final class ClassGeneration implements CompilerLogger {
 
-    /**
-     * List of {@link ClassTest} instances representing the metadata
-     * for the classes and test scenarios to be generated.
-     */
     private final List<ClassTest> classTestList;
-
-    /**
-     * Logger instance used for outputting messages during compilation/generation.
-     */
     private CompilerLogger compilerLogger;
-
-    /**
-     * Stores the hash codes of already generated class definitions to avoid duplication.
-     */
     private final Set<Integer> generatedClassNames = new HashSet<>();
 
     /**
-     * Constructs a new instance of {@code ClassGeneration} with the provided class metadata list.
+     * Constructs a new {@code ClassGeneration} with a list of class test definitions.
      *
-     * @param classTestList List of class metadata used to generate the test classes
+     * @param classTestList list of test metadata for each controller class
      */
     public ClassGeneration(List<ClassTest> classTestList) {
         this.classTestList = classTestList;
     }
 
     /**
-     * Sets a logger implementation for reporting messages during code generation.
+     * Sets the compiler logger implementation for diagnostics.
      *
-     * @param logger the {@link CompilerLogger} to be used
+     * @param logger logger implementation to be used during code generation
      */
     public void setCompilerLogger(CompilerLogger logger) {
         this.compilerLogger = logger;
     }
 
     /**
-     * Logs a message to the provided compiler logger, if set.
+     * Logs a diagnostic message if the logger is available.
      *
-     * @param kind    the kind of diagnostic message
-     * @param message the message to be logged
+     * @param kind    the severity of the message (e.g., NOTE, WARNING, ERROR)
+     * @param message the message to log
      */
     public void log(Diagnostic.Kind kind, String message) {
         if (Objects.nonNull(compilerLogger))
@@ -88,86 +77,132 @@ public final class ClassGeneration implements CompilerLogger {
     }
 
     /**
-     * Main entry point for generating all test classes.
-     * Iterates over the provided {@link ClassTest} list and creates Java source files using JavaPoet.
-     *
-     * - Adds Spring annotations.
-     * - Adds WebTestClient injection.
-     * - Generates each method from te provided HTTP test cases.
-     * - Conditionally includes authentication and multipart handling logic.
+     * Main entry point that initiates test generation for all classes in the list.
+     * Avoids duplicate generation by comparing hash codes.
      */
-    public void generateTestClass() {
-        this.classTestList.stream().forEach(classTest -> {
-
+    public void generateSpec() {
+        this.classTestList.forEach(classTest -> {
             int hash = classTest.hashCode();
             if (generatedClassNames.add(hash)) {
-
-                FieldSpec webTestClientField = FieldSpec.builder(Constants.Imports.WEB_TEST_CLIENT, Constants.WEB_TEST_CLIENT_CLASS_INSTANCE_NAME, Modifier.PRIVATE)
-                        .addAnnotation(Constants.Imports.AUTOWIRED)
-                        .build();
-
-                List<MethodSpec> methods = new ArrayList<>();
-                MethodSpec buildMultipartData = null;
-                if (Predicates.SHOULD_GENERATE_MULTIPART_METHOD.test(classTest)) {
-                    buildMultipartData = ClassGenerationHelper.generateBuildMultipartDataMethod();
-                    methods.add(buildMultipartData);
-                }
-
-                FieldSpec bearerTokenField = null;
-                MethodSpec authenticate = null;
-                Predicate<ClassTest> combined = Predicates.SHOULD_GENERATE_AUTH_TOKEN.and(Predicates.IS_REQUIRE_AUTH);
-                if (combined.test(classTest)) {
-                    bearerTokenField = FieldSpec.builder(String.class, Constants.ATTRIBUTE_CLASS_TEST_BEARER_TOKEN, Modifier.PRIVATE)
-                            .initializer("$S", "")
-                            .build();
-                    authenticate = ClassGenerationHelper.generateAuthBeforeEachMethod(
-                                                        classTest.getAuthTest().getAuthUrl(),
-                                                        classTest.getAuthTest().getUsername(),
-                                                        classTest.getAuthTest().getPassword(),
-                                                        classTest.getAuthTest().getParameterTokenName());
-                    methods.add(authenticate);
-                }
-
-                List<MethodSpec> testMethods = new ArrayList<>();
-                for (SpecScenariosTest specScenariosTest : classTest.values()) {
-                    String fullPath = (Objects.nonNull(classTest.getPathBase()) ? classTest.getPathBase() : "").concat(specScenariosTest.getPathMethod());
-                    for (CaseTest caseTest : specScenariosTest.getCaseTestList())
-                        testMethods.add(ClassGenerationHelper.generateTestMethod(specScenariosTest, caseTest, fullPath));
-
-                }
-                methods.addAll(testMethods);
-
-                TypeSpec.Builder classBuilder = TypeSpec.classBuilder(classTest.getName())
-                        .addModifiers(Modifier.PUBLIC)
-                        .addAnnotation(AnnotationSpec.builder(Constants.Imports.SPRING_BOOT_TEST)
-                                .addMember(Constants.SPRING_BOOT_TEST_CONTEXT_NAME, Constants.SPRING_BOOT_TEST_CONTEXT_FORMAT, Constants.Imports.WEB_ENVIRONMENT)
-                                .build())
-                        .addAnnotation(Constants.Imports.AUTO_CONFIGURE_WEB_TEST_CLIENT)
-                        .addField(webTestClientField);
-
-                if (Objects.nonNull(bearerTokenField)) classBuilder.addField(bearerTokenField);
-                classBuilder.addMethods(methods);
-                TypeSpec clazz = classBuilder.build();
-
-                try {
-                    JavaFile javaFile = JavaFile.builder(classTest.getPackageName(), clazz)
-                            .addFileComment("import static io.github.kelari.atg.util.DataLoadUtil.*;")
-                            .build();
-                    String raw = javaFile.toString();
-                    String updated = raw.replace(
-                            "package " + classTest.getPackageName() + ";",
-                            "package " + classTest.getPackageName() + ";\n\nimport static io.github.kelari.atg.util.DataLoadUtil.*;"
-                    );
-                    updated = updated.replace("// import static io.github.kelari.atg.util.DataLoadUtil.*;",
-                                         "// Generated by Kelari - API Test Generator"
-                    );
-                    String testSrcDir = System.getProperty("user.dir") + "/src/test/java/" + classTest.getPackageName().replace('.', '/') + "/" + classTest.getName() + ".java";
-                    Files.write(Paths.get(testSrcDir), updated.getBytes(StandardCharsets.UTF_8));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                generateClassFor(classTest);
             }
         });
     }
 
+    /**
+     * Generates a Java test class file for a given {@link ClassTest} definition.
+     *
+     * @param classTest the metadata for the class to generate
+     */
+    private void generateClassFor(ClassTest classTest) {
+        TypeSpec testClass = buildTestClass(classTest);
+
+        JavaFile javaFile = JavaFile.builder(classTest.getPackageName(), testClass)
+                .addFileComment("import static io.github.kelari.atg.util.DataLoadUtil.*;")
+                .build();
+
+        writeTestFile(javaFile, classTest.getPackageName(), classTest.getName());
+    }
+
+    /**
+     * Builds the actual JavaPoet {@link TypeSpec} representing the test class,
+     * including fields, annotations and methods based on configuration.
+     *
+     * @param classTest the test definition
+     * @return a complete {@code TypeSpec} for the test class
+     */
+    private TypeSpec buildTestClass(ClassTest classTest) {
+        FieldSpec webTestClientField = FieldSpec.builder(
+                        Constants.Imports.WEB_TEST_CLIENT,
+                        Constants.WEB_TEST_CLIENT_CLASS_INSTANCE_NAME,
+                        Modifier.PRIVATE)
+                .addAnnotation(Constants.Imports.AUTOWIRED)
+                .build();
+        List<MethodSpec> methods = new ArrayList<>();
+        if (Predicates.SHOULD_GENERATE_MULTIPART_METHOD.test(classTest))
+            methods.add(ClassGenerationHelper.generateBuildMultipartDataMethod());
+        if(Predicates.SHOULD_GENERATE_LOGGING_METHODS.test(classTest)){
+            methods.add(ClassGenerationHelper.generateLogRequestMethod());
+            methods.add(ClassGenerationHelper.generateLogResponseMethod());
+        }
+        FieldSpec bearerTokenField = null;
+        Predicate<ClassTest> combined = Predicates.SHOULD_GENERATE_AUTH_TOKEN.and(Predicates.IS_REQUIRE_AUTH);
+        if (combined.test(classTest)) {
+            bearerTokenField = FieldSpec.builder(String.class, Constants.ATTRIBUTE_CLASS_TEST_BEARER_TOKEN, Modifier.PRIVATE)
+                    .initializer("$S", "")
+                    .build();
+            MethodSpec authMethod = ClassGenerationHelper.generateAuthBeforeEachMethod(
+                    classTest.getAuthTest().getAuthUrl(),
+                    classTest.getAuthTest().getUsername(),
+                    classTest.getAuthTest().getPassword(),
+                    classTest.getAuthTest().getParameterTokenName()
+            );
+            methods.add(authMethod);
+        }
+        methods.addAll(generateTestMethods(classTest));
+        TypeSpec.Builder classBuilder = TypeSpec.classBuilder(classTest.getName())
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(AnnotationSpec.builder(Constants.Imports.SPRING_BOOT_TEST)
+                        .addMember(Constants.SPRING_BOOT_TEST_CONTEXT_NAME, Constants.SPRING_BOOT_TEST_CONTEXT_FORMAT, Constants.Imports.WEB_ENVIRONMENT)
+                        .build())
+                .addAnnotation(Constants.Imports.AUTO_CONFIGURE_WEB_TEST_CLIENT)
+                .addField(webTestClientField)
+                .addMethods(methods);
+        if (bearerTokenField != null)
+            classBuilder.addField(bearerTokenField);
+        return classBuilder.build();
+    }
+
+    /**
+     * Generates a list of test method specifications from the scenarios and test cases
+     * within the provided {@link ClassTest}.
+     *
+     * @param classTest the test metadata
+     * @return list of method specifications to be added to the class
+     */
+    private List<MethodSpec> generateTestMethods(ClassTest classTest) {
+        List<MethodSpec> testMethods = new ArrayList<>();
+        for (SpecScenariosTest scenario : classTest.values()) {
+            String fullPath = (Objects.nonNull(classTest.getPathBase()) ? classTest.getPathBase() : "")
+                    + scenario.getPathMethod();
+            for (CaseTest caseTest : scenario.getCaseTestList())
+                testMethods.add(ClassGenerationHelper.generateTestMethod(scenario, caseTest, fullPath));
+        }
+        return testMethods;
+    }
+
+    /**
+     * Writes the generated Java test file to the appropriate test source directory.
+     * Ensures the parent directories exist.
+     *
+     * @param javaFile    the Java file to write
+     * @param packageName the package of the test class
+     * @param className   the name of the test class
+     */
+    private void writeTestFile(JavaFile javaFile, String packageName, String className) {
+        try {
+            String content = javaFile.toString()
+                    .replace("package " + packageName + ";",
+                            "package " + packageName + ";\n\nimport static io.github.kelari.atg.util.DataLoadUtil.*;")
+                    .replace("// import static io.github.kelari.atg.util.DataLoadUtil.*;",
+                            "// Generated by Kelari - API Test Generator");
+            Path outputPath = resolveTestDirectory(packageName).resolve(className + ".java");
+            Files.createDirectories(outputPath.getParent());
+            Files.write(outputPath, content.getBytes(StandardCharsets.UTF_8));
+            log(Diagnostic.Kind.NOTE, "Test class generated at: " + outputPath);
+        } catch (IOException e) {
+            throw new RuntimeException("Error generating test file for class: " + className, e);
+        }
+    }
+
+    /**
+     * Resolves the output directory path for test files based on the package name.
+     *
+     * @param packageName the Java package (e.g., com.example.test)
+     * @return the corresponding file system path (e.g., src/test/java/com/example/test)
+     */
+    private Path resolveTestDirectory(String packageName) {
+        String testBase = System.getProperty("user.dir") + "/src/test/java/";
+        return Paths.get(testBase, packageName.replace('.', '/'));
+    }
 }

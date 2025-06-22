@@ -2,6 +2,7 @@ package io.github.kelari.atg.process.helper;
 
 import io.github.kelari.atg.annotation.ApiTestSpec;
 import io.github.kelari.atg.annotation.KelariGenerateApiTest;
+import io.github.kelari.atg.annotation.MatcherType;
 import io.github.kelari.atg.model.*;
 import io.github.kelari.atg.process.AnnotationMetadataExtractor;
 import io.github.kelari.atg.util.CompilerLogger;
@@ -10,9 +11,8 @@ import io.github.kelari.atg.util.Constants;
 import io.github.kelari.atg.util.Predicates;
 
 import javax.lang.model.element.*;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import javax.lang.model.type.DeclaredType;
+import java.util.*;
 
 /**
  * Helper class that provides utility methods for analyzing Java syntax trees
@@ -139,7 +139,6 @@ public final class KelariTreeScannerHelper {
                             .execute(annotationType);
                 }
 
-                // Se não tiver nenhuma anotação relevante, assume como corpo (sem anotações)
                 if (!hasRelevantAnnotation) {
                     metadata.getBody().put(paramName, paramType);
                 }
@@ -206,27 +205,151 @@ public final class KelariTreeScannerHelper {
                         for (AnnotationValue av : values) {
                             AnnotationMirror scenarioAnnotation = (AnnotationMirror) av.getValue();
                             CaseTest caseTest = new CaseTest();
-                            for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> scenarioEntry : scenarioAnnotation.getElementValues().entrySet()) {
-                                String fieldName = scenarioEntry.getKey().getSimpleName().toString();
-                                Object fieldValue = scenarioEntry.getValue().getValue();
-                                switch (fieldName) {
-                                    case "displayName":
+                            // Map with values defined in the annotation
+                            Map<? extends ExecutableElement, ? extends AnnotationValue> presentValues = scenarioAnnotation.getElementValues();
+                            // Iterates over all elements of @ApiTestCase
+                            for (Element enclosedElement : scenarioAnnotation.getAnnotationType().asElement().getEnclosedElements()) {
+                                if (enclosedElement.getKind() != ElementKind.METHOD)
+                                    continue;
+                                ExecutableElement method = (ExecutableElement) enclosedElement;
+                                String name = method.getSimpleName().toString();
+                                AnnotationValue value = presentValues.get(method);
+                                if (value == null)
+                                    value = method.getDefaultValue(); // value default
+                                if (value == null) {
+                                    compilerLogger.warning("Null value for field: " + name);
+                                    continue;
+                                }
+                                Object fieldValue = value.getValue();
+                                switch (name) {
+                                    case Constants.AnnotationFileds.DISPLAY_NAME:
                                         caseTest.displayName((String) fieldValue);
                                         break;
-                                    case "order":
+                                    case Constants.AnnotationFileds.ORDER:
                                         caseTest.order((Integer) fieldValue);
                                         break;
-                                    case "timeout":
+                                    case Constants.AnnotationFileds.TIMEOUT:
                                         caseTest.timeout((Integer) fieldValue);
                                         break;
-                                    case "expectedStatusCode":
+                                    case Constants.AnnotationFileds.EXPECTED_STATUS_CODE:
                                         caseTest.expectedStatusCode((Integer) fieldValue);
                                         break;
-                                    case "requiresAuth":
+                                    case Constants.AnnotationFileds.REQUIRES_AUTH:
                                         caseTest.requiresAuth((Boolean) fieldValue);
                                         break;
-                                    case "dataProviderClassName":
-                                        caseTest.dataProviderClassName((String) fieldValue);
+                                    case Constants.AnnotationFileds.REPEAT:
+                                        caseTest.repeat((Integer) fieldValue);
+                                        break;
+                                    case Constants.AnnotationFileds.ENABLE_LOGGING:
+                                        caseTest.enableLogging((Boolean) fieldValue);
+                                        break;
+                                    case Constants.AnnotationFileds.RESPONSE_TIMEOUT_SECONDS:
+                                        caseTest.responseTimeoutSeconds((long) fieldValue);
+                                        break;
+                                    case Constants.AnnotationFileds.JSON_PATHS:
+                                        if (fieldValue instanceof List<?> list) {
+                                            List<JsonPath> jsonPaths = new ArrayList<>();
+                                            for (Object item : list) {
+                                                if (item instanceof AnnotationValue annotationValue) {
+                                                    AnnotationMirror mirror = (AnnotationMirror) annotationValue.getValue();
+
+                                                    String pathVal = null;
+                                                    MatcherType matcherType = null;
+                                                    String valueVal = null;
+                                                    String matcherClassVal = null;
+
+                                                    for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> jsonPathEntry : mirror.getElementValues().entrySet()) {
+                                                        String key = jsonPathEntry.getKey().getSimpleName().toString();
+                                                        Object val = jsonPathEntry.getValue().getValue();
+
+                                                        switch (key) {
+                                                            case "path" -> pathVal = (String) val;
+                                                            case "type" -> matcherType = MatcherType.valueOf(val.toString());
+                                                            case "value" -> valueVal = (String) val;
+                                                            case "matcherClass" ->      {
+                                                                if (val instanceof DeclaredType declaredType)
+                                                                    matcherClassVal = declaredType.toString();
+                                                            }
+                                                        }
+                                                    }
+                                                    caseTest.jsonPaths(new JsonPath(pathVal, matcherType, valueVal, matcherClassVal));
+                                                }
+                                            }
+                                        } else
+                                            compilerLogger.warning("Unexpected type for jsonPaths: " + fieldValue.getClass());
+                                        break;
+                                    case Constants.AnnotationFileds.EXPECTED_HEADERS:
+                                        if (fieldValue instanceof List<?> list) {
+                                            for (Object item : list) {
+                                                if (item instanceof AnnotationValue annotationValue) {
+                                                    AnnotationMirror mirror = (AnnotationMirror) annotationValue.getValue();
+                                                    String headerName = null;
+                                                    List<String> headerValues = new ArrayList<>();
+                                                    for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> headerEntry : mirror.getElementValues().entrySet()) {
+                                                        String key = headerEntry.getKey().getSimpleName().toString();
+                                                        Object val = headerEntry.getValue().getValue();
+                                                        if ("name".equals(key) && val instanceof String nameVal)
+                                                            headerName = nameVal;
+                                                        else if ("value".equals(key)) {
+                                                            if (val instanceof List<?> valuesList) {
+                                                                for (Object valElement : valuesList) {
+                                                                    if (valElement instanceof AnnotationValue avv)
+                                                                        headerValues.add(avv.getValue().toString());
+                                                                }
+                                                            } else if (val instanceof String singleVal)
+                                                                headerValues.add(singleVal);
+                                                        }
+                                                    }
+                                                    if (headerName != null && !headerValues.isEmpty())
+                                                        caseTest.expectedHeaders(new Header(headerName, headerValues.toArray(new String[0])));
+                                                    else
+                                                        compilerLogger.warning("Missing name or value(s) in expectedHeader.");
+                                                }
+                                            }
+                                        } else
+                                            compilerLogger.warning("Unexpected type for expectedHeaders: " + fieldValue.getClass());
+                                        break;
+                                    case Constants.AnnotationFileds.EXPECTED_COOKIES:
+                                        if (fieldValue instanceof List<?> list) {
+                                            for (Object item : list) {
+                                                if (item instanceof AnnotationValue annotationValue) {
+                                                    AnnotationMirror mirror = (AnnotationMirror) annotationValue.getValue();
+                                                    String cookieName = null;
+                                                    String cookieValue = null;
+                                                    for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> cookieEntry : mirror.getElementValues().entrySet()) {
+                                                        String key = cookieEntry.getKey().getSimpleName().toString();
+                                                        String val = cookieEntry.getValue().getValue().toString();
+                                                        if ("name".equals(key))
+                                                            cookieName = val;
+                                                        else if ("value".equals(key))
+                                                            cookieValue = val;
+                                                    }
+                                                    if (cookieName != null && cookieValue != null)
+                                                        caseTest.expectedCookies(new Cookie(cookieName, cookieValue));
+                                                    else
+                                                        compilerLogger.warning("Missing name or value in expectedCookie.");
+                                                }
+                                            }
+                                        } else
+                                            compilerLogger.warning("Unexpected type for expectedCookies: " + fieldValue.getClass());
+                                        break;
+                                    case Constants.AnnotationFileds.DATA_PROVIDER_CLASS_NAME:
+                                        if (fieldValue instanceof List<?>) {
+                                            List<?> list = (List<?>) fieldValue;
+                                            if (!list.isEmpty()) {
+                                                Object first = ((AnnotationValue) list.get(0)).getValue();
+                                                if (first instanceof String strVal)
+                                                    caseTest.dataProviderClassName(strVal);
+                                                else
+                                                    compilerLogger.warning("Expected String in list for dataProviderClassName, but got: " + first);
+                                            }
+                                        } else if (fieldValue instanceof String strVal)
+                                            caseTest.dataProviderClassName(strVal);
+                                          else
+                                            compilerLogger.warning("Unexpected type for dataProviderClassName: " + fieldValue.getClass());
+                                        break;
+                                    default:
+                                        compilerLogger.warning("Unknown field: " + name);
                                         break;
                                 }
                             }

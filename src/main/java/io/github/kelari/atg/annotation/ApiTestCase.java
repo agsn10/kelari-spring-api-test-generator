@@ -3,6 +3,7 @@ package io.github.kelari.atg.annotation;
 import io.github.kelari.atg.data.DataLoad;
 
 import java.lang.annotation.*;
+import java.time.Duration;
 
 /**
  * Defines the execution goals for an API test, such as execution order,
@@ -19,7 +20,7 @@ import java.lang.annotation.*;
  *     displayName = "🚀 Should create a new customer successfully",
  *     order = 1,
  *     timeout = 5,
- *     expectedStatusCodes = HttpURLConnection.HTTP_OK
+ *     expectedStatusCode = HttpURLConnection.HTTP_OK
  * )
  * }
  * </pre>
@@ -69,9 +70,9 @@ public @interface ApiTestCase {
      * Defines a class that will load test data to be used during test execution.
      * The class must implement the {@link DataLoad} interface.
      *
-     * @return a class implementing {@link DataLoad}, default is None.class (no data)
+     * @return a class implementing {@link DataLoad}, default is empty string (no provider)
      */
-    String dataProviderClassName() default "";
+    String[] dataProviderClassName() default {};
 
     /**
      * Indicates whether the test requires authentication.
@@ -80,4 +81,60 @@ public @interface ApiTestCase {
      * @return true if the endpoint requires authentication; false otherwise
      */
     boolean requiresAuth() default false;
+
+    /**
+     * Defines a list of expected JSONPath expressions and their expected values
+     * to be validated against the API response body.
+     *
+     * @return an array of {@link JsonPath} validations
+     */
+    JsonPath[] jsonPaths() default {};
+
+    /**
+     * Enables or disables logging for this specific test case.
+     * Useful for debugging or tracing execution details.
+     *
+     * @return true if logging should be enabled; false otherwise
+     */
+    boolean enableLogging() default false;
+
+    /**
+     * Indicates whether this test case should be executed as a parameterized test.
+     * Useful when executing the same logic with different inputs.
+     *
+     * @return true if the test is parameterized; false otherwise
+     */
+    //boolean parameterizedTest() default false;
+
+    /**
+     * Defines the list of HTTP headers expected to be present in the response.
+     * Useful for validating response metadata.
+     *
+     * @return an array of expected response headers
+     */
+    Header[] expectedHeaders() default {};
+
+    /**
+     * Defines the list of HTTP cookies expected to be present in the response.
+     * Useful for validating response metadata.
+     *
+     * @return an array of expected response cookies
+     */
+    Cookie[] expectedCookies() default {};
+
+    /**
+     * Defines how many times the test should be executed consecutively.
+     * Useful for stability testing or retries.
+     *
+     * @return the number of times to repeat the test
+     */
+    int repeat() default 1;
+
+    /**
+     * Defines the maximum duration to wait for a response, in seconds.
+     * Overrides the global timeout if specified.
+     *
+     * @return the response timeout in seconds; -1 means no override
+     */
+    long responseTimeoutSeconds() default -1;
 }

@@ -83,7 +83,7 @@ public class KelariTaskListener implements TaskListener {
                                 trees.printMessage(kind, msg, path.getLeaf(), path.getCompilationUnit())
                         );
                         // ✨ Generate the test class file(s)
-                        kelariClassGeneration.generateTestClass();
+                        kelariClassGeneration.generateSpec();
                     }
                 }
 
