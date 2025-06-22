@@ -1,9 +1,18 @@
 package io.github.kelari.atg.process.helper;
 
 import com.squareup.javapoet.*;
-import io.github.kelari.atg.model.CaseTest;
-import io.github.kelari.atg.model.ParameterMetadataTest;
-import io.github.kelari.atg.model.SpecScenariosTest;
+import io.github.kelari.atg.model.*;
+import io.github.kelari.atg.process.handler.ClientNameResolver;
+import io.github.kelari.atg.process.handler.FluentMethodSpecHandlerChain;
+import io.github.kelari.atg.process.handler.MethodSpecHandlerChain;
+import io.github.kelari.atg.process.handler.annotations.DisplayNameHandler;
+import io.github.kelari.atg.process.handler.annotations.OrderHandler;
+import io.github.kelari.atg.process.handler.annotations.RepeatHandler;
+import io.github.kelari.atg.process.handler.annotations.TimeoutHandler;
+import io.github.kelari.atg.process.handler.client.*;
+import io.github.kelari.atg.process.handler.expectations.ExpectCookieHandler;
+import io.github.kelari.atg.process.handler.expectations.ExpectHeaderHandler;
+import io.github.kelari.atg.process.handler.expectations.ExpectJsonPathHandler;
 import io.github.kelari.atg.util.Constants;
 
 import javax.lang.model.element.Modifier;
@@ -95,151 +104,122 @@ public class ClassGenerationHelper {
         int statusCode = test.getExpectedStatusCode();
         String expectMethod = EXPECT_STATUS_METHOD.apply(statusCode);
         String methodName = String.format("%s_%d", spec.getMethodName(), statusCode);
+
         MethodSpec.Builder builder = MethodSpec.methodBuilder(methodName)
-                .addAnnotation(Constants.Imports.TEST)
                 .addModifiers(Modifier.PUBLIC)
                 .returns(void.class);
-        if (test.getOrder() > 0) {
-            builder.addAnnotation(AnnotationSpec.builder(Constants.Imports.ORDER)
-                    .addMember("value", "$L", test.getOrder())
-                    .build());
-        }
-        if (test.getTimeout() > 0) {
-            builder.addAnnotation(AnnotationSpec.builder(Constants.Imports.TIMEOUT)
-                    .addMember("value", "$L", test.getTimeout())
-                    .build());
-        }
-        if (!test.getDisplayName().isEmpty() || Objects.nonNull(test.getDisplayName())) {
-            builder.addAnnotation(AnnotationSpec.builder(Constants.Imports.DISPLAY_NAME)
-                    .addMember("value", "$S", test.getDisplayName())
-                    .build());
-        }
-        // Start of code block
-        CodeBlock.Builder codeBlockBuilder = CodeBlock.builder();
-        // Date statement
-        codeBlockBuilder.addStatement("$T<String, Object> data = getData($S)", Constants.Imports.MAP, test.getDataProviderClassName());
-        // Declaration of body objects (if any)
-        Optional.ofNullable(test.getMethodParameters())
-                .map(ParameterMetadataTest::getBody)
-                .ifPresent(bodyMap -> {
-                    // Apenas gera os casts se NÃO for multipart/form-data
-                    if (MethodGenerationHelper.requiresBody(httpMethod)
-                            && !MethodGenerationHelper.requiresMultipartFormData(httpMethod, test.getMethodParameters())) {
-                        for (Map.Entry<String, String> entry : bodyMap.entrySet()) {
-                            String bodyVarName = entry.getKey();
-                            String bodyClass = entry.getValue();
-                            codeBlockBuilder.addStatement(
-                                    "$L $L = ($L) data.get($S)",
-                                    bodyClass, bodyVarName, bodyClass, bodyVarName
-                            );
-                        }
-                    }
-                });
-        // webTestClient + fluent call
-        StringBuilder statement = new StringBuilder("webTestClient\n\t.$L()");
+
+        CodeBlock.Builder codeBlock = CodeBlock.builder();
+        new MethodSpecHandlerChain()
+                .add(RepeatHandler::new)
+                .add(TimeoutHandler::new)
+                .add(OrderHandler::new)
+                .add(DisplayNameHandler::new)
+                .add(ClientInitializationHandler::new)
+                .add(DataLoadHandler::new)
+                .applyAll(builder, codeBlock, spec, test, fullPath);
+
+        String clientName = ClientNameResolver.resolve(test);
+
+        StringBuilder statement = new StringBuilder(clientName + "\n\t.$L()");
         List<Object> args = new ArrayList<>();
         args.add(httpMethod);
-        // URI
-        String uriExpr = MethodGenerationHelper.prepareUriExpression(
-                fullPath,
-                Optional.ofNullable(test.getMethodParameters()).map(ParameterMetadataTest::getPathParams).orElse(null),
-                Optional.ofNullable(test.getMethodParameters()).map(ParameterMetadataTest::getQueryParams).orElse(null),
-                Optional.ofNullable(test.getMethodParameters()).map(ParameterMetadataTest::getMatrixParams).orElse(null)
-        );
-        statement.append("\n\t.uri(").append(uriExpr).append(")");
-        // Headers
-        Optional.ofNullable(test.getMethodParameters())
-                .map(ParameterMetadataTest::getHeaderParams)
-                .ifPresent(params -> {
-                    for (String key : params.keySet()) {
-                        statement.append("\n\t.header($S, safeString(data.get($S)))");
-                        args.add(key);
-                        args.add(key);
-                    }
-                });
-        if (test.isRequiresAuth()) {
-            statement.append("\n\t.header($S, $L)");
-            args.add("Authorization");
-            args.add("bearerToken");
-        }
-        // Cookies
-        Optional.ofNullable(test.getMethodParameters())
-                .map(ParameterMetadataTest::getCookieParams)
-                .ifPresent(params -> {
-                    for (String key : params.keySet()) {
-                        statement.append("\n\t.cookie($S, safeString(data.get($S)))");
-                        args.add(key);
-                        args.add(key);
-                    }
-                });
-        // Body (multipart ou JSON)
-        if (MethodGenerationHelper.requiresMultipartFormData(httpMethod, test.getMethodParameters())) {
-            statement.append("\n\t.contentType($T.MULTIPART_FORM_DATA)");
-            args.add(Constants.Imports.MEDIA_TYPE);
-            // Support buildMultipartData with full map
-            statement.append("\n\t.body($T.fromMultipartData(buildMultipartData(data)))");
-            args.add(Constants.Imports.BODY_INSERTERS);
-        } else if (MethodGenerationHelper.requiresBody(httpMethod)) {
-            statement.append("\n\t.contentType($T.APPLICATION_JSON)");
-            args.add(Constants.Imports.MEDIA_TYPE);
-            Optional.ofNullable(test.getMethodParameters())
-                    .map(ParameterMetadataTest::getBody)
-                    .ifPresent(bodyMap -> {
-                        for (Map.Entry<String, String> entry : bodyMap.entrySet()) {
-                            String bodyVarName = entry.getKey();
-                            // NOTE: if the value is a complex object (e.g. UploadRequest),
-                            // it needs to be converted to JSON (via formatBody)
-                            statement.append("\n\t.bodyValue(formatBody($L))");
-                            args.add(bodyVarName);
-                        }
-                    });
-        }
-        // End of thread
-        statement.append("\n\t.exchange()\n\t.expectStatus().$L");
-        args.add(expectMethod);
-        if ("DEFAULT".equals(expectMethod)) {
-            statement.append("($L)");
-            args.add(statusCode);
-        } else
-            statement.append("()");
-        // Add chaining to the block
-        codeBlockBuilder.addStatement(statement.toString(), args.toArray());
-        // Add the block to the method
-        builder.addCode(codeBlockBuilder.build());
+
+        new FluentMethodSpecHandlerChain()
+                .add(UriHandler::new)
+                .add(HeaderHandler::new)
+                .add(AuthHandler::new)
+                .add(CookieHandler::new)
+                .add(BodyHandler::new)
+                .add(() -> new ExchangeHandler(expectMethod))
+                .add(ExpectCookieHandler::new)
+                .add(ExpectHeaderHandler::new)
+                .add(ExpectJsonPathHandler::new)
+                .applyAll(statement, args, spec, test, fullPath);
+
+        codeBlock.addStatement(statement.toString(), args.toArray());
+        builder.addCode(codeBlock.build());
 
         return builder.build();
     }
 
+    /**
+     * Generates a method for building multipart data for HTTP requests.
+     *
+     * <p>This method generates a multipart data map for the WebTestClient requests.
+     * It supports various types of data, including files and plain text.</p>
+     *
+     * @return a {@link MethodSpec} representing the generated multipart data builder method.
+     */
     public static MethodSpec generateBuildMultipartDataMethod() {
-        ClassName multiValueMap = ClassName.get("org.springframework.util", "MultiValueMap");
-        ClassName httpEntity = ClassName.get("org.springframework.http", "HttpEntity");
-        ClassName linkedMultiValueMap = ClassName.get("org.springframework.util", "LinkedMultiValueMap");
-        ClassName httpHeaders = ClassName.get("org.springframework.http", "HttpHeaders");
-        ClassName resourceClass = ClassName.get("org.springframework.core.io", "Resource");
-        ClassName mediaType = ClassName.get("org.springframework.http", "MediaType");
-
-        // Método buildMultipartData
         return  MethodSpec.methodBuilder("buildMultipartData")
                 .addModifiers(Modifier.PRIVATE)
-                .returns(ParameterizedTypeName.get(multiValueMap, ClassName.get(String.class), ParameterizedTypeName.get(httpEntity, WildcardTypeName.subtypeOf(Object.class))))
+                .returns(ParameterizedTypeName.get(Constants.Imports.MULTI_VALUE_MAP, ClassName.get(String.class), ParameterizedTypeName.get(Constants.Imports.HTTP_ENTITY, WildcardTypeName.subtypeOf(Object.class))))
                 .addParameter(ParameterizedTypeName.get(ClassName.get(Map.class), ClassName.get(String.class), ClassName.get(Object.class)), "data")
                 .addCode(CodeBlock.builder()
-                        .addStatement("$T<String, $T<?>> body = new $T<>()", multiValueMap, httpEntity, linkedMultiValueMap)
+                        .addStatement("$T<String, $T<?>> body = new $T<>()", Constants.Imports.MULTI_VALUE_MAP, Constants.Imports.HTTP_ENTITY, Constants.Imports.LINKED_MULTI_VALUE_MAP)
                         .beginControlFlow("for ($T.Entry<String, Object> entry : data.entrySet())", Map.class)
                         .addStatement("String key = entry.getKey()")
                         .addStatement("Object value = entry.getValue()")
-                        .addStatement("$T headers = new $T()", httpHeaders, httpHeaders)
-                        .beginControlFlow("if (value instanceof $T || value instanceof byte[])", resourceClass)
-                        .addStatement("headers.setContentType($T.MULTIPART_FORM_DATA)", mediaType)
-                        .addStatement("$T<?> part = new $T<>(value, headers)", httpEntity, httpEntity)
+                        .addStatement("$T headers = new $T()", Constants.Imports.HTTP_HEADERS, Constants.Imports.HTTP_HEADERS)
+                        .beginControlFlow("if (value instanceof $T || value instanceof byte[])", Constants.Imports.RESOURCE_CLASS)
+                        .addStatement("headers.setContentType($T.MULTIPART_FORM_DATA)", Constants.Imports.MEDIA_TYPE)
+                        .addStatement("$T<?> part = new $T<>(value, headers)", Constants.Imports.HTTP_ENTITY, Constants.Imports.HTTP_ENTITY)
                         .addStatement("body.add(key, part)")
                         .nextControlFlow("else")
-                        .addStatement("headers.setContentType($T.TEXT_PLAIN)", mediaType)
-                        .addStatement("$T<String> part = new $T<>(safeString(value), headers)", httpEntity, httpEntity)
+                        .addStatement("headers.setContentType($T.TEXT_PLAIN)", Constants.Imports.MEDIA_TYPE)
+                        .addStatement("$T<String> part = new $T<>(safeString(value), headers)", Constants.Imports.HTTP_ENTITY, Constants.Imports.HTTP_ENTITY)
                         .addStatement("body.add(key, part)")
                         .endControlFlow()
                         .endControlFlow()
                         .addStatement("return body")
+                        .build())
+                .build();
+    }
+
+    /**
+     * Generates a logging method for WebTestClient requests.
+     *
+     * <p>This method logs the request details including headers and cookies for each request made with WebTestClient.</p>
+     *
+     * @return a {@link MethodSpec} representing the generated logRequest method.
+     */
+    public static MethodSpec generateLogRequestMethod() {
+        return MethodSpec.methodBuilder("logRequest")
+                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                .returns(Constants.Imports.EXCHANGE_FILTER_FUNCTION)
+                .addCode(CodeBlock.builder()
+                        .addStatement("return $T.ofRequestProcessor(request -> {\n" +
+                                        "    System.out.println(\"[REQUEST] → \" + request.method() + \" \" + request.url());\n" +
+                                        "    request.headers().forEach((k, v) -> System.out.println(\"[HEADER] \" + k + \": \" + v));\n" +
+                                        "    request.cookies().forEach((k, v) -> System.out.println(\"[COOKIE] \" + k + \": \" + v));\n" +
+                                        "    // [BODY] Logging not implemented. Next release.\n" +
+                                        "    return $T.just(request);\n" +
+                                        "})",
+                                Constants.Imports.EXCHANGE_FILTER_FUNCTION,
+                                Constants.Imports.MONO)
+                        .build())
+                .build();
+    }
+
+    /**
+     * Generates a logging method for WebTestClient responses.
+     *
+     * <p>This method logs the response details including status code and headers for each response received.</p>
+     *
+     * @return a {@link MethodSpec} representing the generated logResponse method.
+     */
+    public static MethodSpec generateLogResponseMethod() {
+        return MethodSpec.methodBuilder("logResponse")
+                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                .returns(Constants.Imports.EXCHANGE_FILTER_FUNCTION)
+                .addCode(CodeBlock.builder()
+                        .addStatement("return $T.ofResponseProcessor(response -> {\n" +
+                                "    System.out.println(\"[RESPONSE] ← Status: \" + response.statusCode());\n" +
+                                "    response.headers().asHttpHeaders()\n" +
+                                "        .forEach((k, v) -> System.out.println(\"[HEADER] \" + k + \": \" + v));\n" +
+                                "    return $T.just(response);\n" +
+                                "})", Constants.Imports.EXCHANGE_FILTER_FUNCTION, Constants.Imports.MONO)
                         .build())
                 .build();
     }

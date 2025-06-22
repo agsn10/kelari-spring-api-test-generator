@@ -123,6 +123,19 @@ public final class Predicates {
             }));
 
     /**
+     * Predicate that checks if the {@link ClassTest} contains methods
+     * that explicitly enable logging.
+     * <p>
+     * Used to determine if logging should be included in the test setup.
+     */
+    public static final Predicate<ClassTest> SHOULD_GENERATE_LOGGING_METHODS = classTest ->
+            classTest.entrySet().stream()
+                    .map(Map.Entry::getValue)
+                    .filter(Objects::nonNull)
+                    .flatMap(spec -> spec.getCaseTestList().stream())
+                    .anyMatch(CaseTest::isEnableLogging);
+
+    /**
      * Predicate that verifies if any {@link CaseTest} in the given {@link ClassTest}
      * explicitly requires authentication (i.e., {@code requiresAuth = true}).
      * <p>

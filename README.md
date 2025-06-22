@@ -63,13 +63,6 @@ Adicione ao seu `pom.xml` (em breve no Maven Central), por agora no Github Packa
 </repositories>
 
 <dependencies>
-
-    <dependency>
-        <groupId>io.github.kelari</groupId>
-        <artifactId>kelari-spring-api-test-generator</artifactId>
-        <version>1.0.0</version>
-    </dependency>
-
     <dependency>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-web</artifactId>
@@ -77,7 +70,7 @@ Adicione ao seu `pom.xml` (em breve no Maven Central), por agora no Github Packa
     <dependency>
         <groupId>io.github.kelari.atg</groupId>
         <artifactId>kelari-spring-api-test-generator</artifactId>
-        <version>1.0.0</version>
+        <version>1.1.6</version>
     </dependency>
     <dependency>
         <groupId>org.springframework.boot</groupId>
@@ -106,7 +99,7 @@ Adicione ao seu `pom.xml` (em breve no Maven Central), por agora no Github Packa
                     <path>
                         <groupId>io.github.kelari.atg</groupId>
                         <artifactId>kelari-spring-api-test-generator</artifactId>
-                        <version>1.0.0</version>
+                        <version>1.1.6</version>
                     </path>
                 </annotationProcessorPaths>
             </configuration>
@@ -170,15 +163,48 @@ public class ExampleResource {
     @ApiTestSpec(
             scenarios = {
                     @ApiTestCase(
-                            displayName = "✅ Should return 200 OK when Example is found",
+                            displayName = "✅ Should return 200 OK when 'id' is 200 and authenticated",
                             order = 1,
                             timeout = 5,
                             expectedStatusCode = HttpURLConnection.HTTP_OK,
                             dataProviderClassName = "com.example.demo.data.GetExampleDataLoad200",
-                            requiresAuth = true
+                            requiresAuth = true,
+                            repeat = 5,
+                            enableLogging = true,
+                            responseTimeoutSeconds = 5,
+                            expectedHeaders = {@Header(name = "testName1", value = {"testValue1", "testValue11"}),
+                                    @Header(name = "testName2", value = "testValue2")},
+                            jsonPaths = {
+                                    // EQUAL_TO: o valor retornado deve ser exatamente "John"
+                                    @JsonPath(path = "$.name", type = MatcherType.EQUAL_TO, value = "John"),
+                                    // NULL_VALUE: espera que o valor seja null
+                                    @JsonPath(path = "$.optionalField", type = MatcherType.NULL_VALUE),
+                                    // NOT_NULL_VALUE: espera que o campo não seja null
+                                    @JsonPath(path = "$.mandatoryField", type = MatcherType.NOT_NULL_VALUE),
+                                    // NOT: nega o valor (ex: não deve ser "Admin")
+                                    @JsonPath(path = "$.role", type = MatcherType.NOT, value = "Admin"),
+                                    // INSTANCE_OF: espera que o valor seja do tipo Integer
+                                    @JsonPath(path = "$.age", type = MatcherType.INSTANCE_OF, value = "java.lang.Integer"),
+                                    // GREATER_THAN: espera que o valor seja maior que 10
+                                    @JsonPath(path = "$.score", type = MatcherType.GREATER_THAN, value = "10"),
+                                    // LESS_THAN: espera que o valor seja menor que 100
+                                    @JsonPath(path = "$.limit", type = MatcherType.LESS_THAN, value = "100"),
+                                    // CONTAINS_STRING: espera que o valor contenha a substring "success"
+                                    @JsonPath(path = "$.message", type = MatcherType.CONTAINS_STRING, value = "success"),
+                                    // STARTS_WITH: espera que o valor comece com "user_"
+                                    @JsonPath(path = "$.username", type = MatcherType.STARTS_WITH, value = "user_"),
+                                    // ENDS_WITH: espera que o valor termine com ".com"
+                                    @JsonPath(path = "$.email", type = MatcherType.ENDS_WITH, value = ".com"),
+                                    // ANY_OF: espera que o valor seja qualquer um da lista ["A", "B", "C"]
+                                    @JsonPath(path = "$.grade", type = MatcherType.ANY_OF, value = "A,B,C"),
+                                    // CONTAINS: espera que a lista contenha "admin"
+                                    @JsonPath(path = "$.roles", type = MatcherType.HAS_ITEM, value = "admin"),
+                                    // CUSTOM_CLASS: matcher Java personalizado
+                                    @JsonPath(path = "$.name", type = MatcherType.CUSTOM_CLASS, matcherClass = IsJohnMatcher.class)
+                            }
                     ),
                     @ApiTestCase(
-                            displayName = "❌ Should return 400 Bad Request when input is invalid",
+                            displayName = "❌ Should return 400 Bad Request when 'id' is 400",
                             order = 2,
                             timeout = 5,
                             expectedStatusCode = HttpURLConnection.HTTP_BAD_REQUEST,
@@ -186,7 +212,7 @@ public class ExampleResource {
                             requiresAuth = true
                     ),
                     @ApiTestCase(
-                            displayName = "🛡️ Should return 401 when not authenticated",
+                            displayName = "🛡️ Should return 401 Unauthorized when Authorization header is missing",
                             order = 3,
                             timeout = 3,
                             expectedStatusCode = HttpURLConnection.HTTP_UNAUTHORIZED,
@@ -194,7 +220,7 @@ public class ExampleResource {
                             requiresAuth = false
                     ),
                     @ApiTestCase(
-                            displayName = "❌ Should return 404 Not Found when Example does not exist",
+                            displayName = "❌ Should return 404 Not Found when 'id' is 404",
                             order = 4,
                             timeout = 5,
                             expectedStatusCode = HttpURLConnection.HTTP_NOT_FOUND,
@@ -202,7 +228,7 @@ public class ExampleResource {
                             requiresAuth = true
                     ),
                     @ApiTestCase(
-                            displayName = "❌ Should return 500 Internal Server Error on unexpected failure",
+                            displayName = "❌ Should return 500 Internal Server Error for unhandled 'id'",
                             order = 5,
                             timeout = 5,
                             expectedStatusCode = HttpURLConnection.HTTP_INTERNAL_ERROR,
@@ -211,14 +237,12 @@ public class ExampleResource {
                     )
             }
     )
+    // GET com @PathVariable e @RequestParam
     @GetMapping("/{id}")
-    public ResponseEntity<String> getExample(
-        @PathVariable Long id,
-        @RequestParam(required = false) String filter,
-        @RequestHeader(value = "X-Custom-Header", required = false) String customHeader
-    ) {
-        return ResponseEntity.ok("GET response");
-    }
+    public ResponseEntity<DataResponse> getExample(
+            @PathVariable("id") Long id,
+            @RequestParam(required = false) String filter,
+            @RequestHeader(value = "X-Custom-Header", required = false) String customHeader){...}
 }
 ```
 
@@ -250,6 +274,25 @@ public class ExampleResourceGeneratedTest {
 
     private String bearerToken = "";
 
+    private static ExchangeFilterFunction logRequest() {
+        return ExchangeFilterFunction.ofRequestProcessor(request -> {
+            System.out.println("[REQUEST] → " + request.method() + " " + request.url());
+            request.headers().forEach((k, v) -> System.out.println("[HEADER] " + k + ": " + v));
+            request.cookies().forEach((k, v) -> System.out.println("[COOKIE] " + k + ": " + v));
+            // [BODY] Logging not implemented. Next release.
+            return Mono.just(request);
+        });
+    }
+
+    private static ExchangeFilterFunction logResponse() {
+        return ExchangeFilterFunction.ofResponseProcessor(response -> {
+            System.out.println("[RESPONSE] ← Status: " + response.statusCode());
+            response.headers().asHttpHeaders()
+                    .forEach((k, v) -> System.out.println("[HEADER] " + k + ": " + v));
+            return Mono.just(response);
+        });
+    }
+
     @BeforeEach
     public void authenticate() {
         if ("/api/auth/login".isEmpty()) {
@@ -257,7 +300,7 @@ public class ExampleResourceGeneratedTest {
         }
         Map<String, String> credentials = new HashMap<>();
         credentials.put("username", "admin");
-        credentials.put("password", "123456");
+        credentials.put("password", "admin");
         webTestClient.post()
                 .uri("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -270,23 +313,47 @@ public class ExampleResourceGeneratedTest {
                 .value(token -> bearerToken = "Bearer " + token);
     }
 
-    @Test
-    @Order(1)
+    @RepeatedTest(5)
     @Timeout(5)
+    @Order(1)
+    @DisplayName("✅ Should return 200 OK when 'id' is 200 and authenticated")
     public void getExample_200() {
+        WebTestClient client = this.webTestClient
+                .mutate()
+                .filter(logRequest())
+                .filter(logResponse())
+                .responseTimeout(Duration.ofSeconds(5))
+                .build();
         Map<String, Object> data = getData("com.example.demo.data.GetExampleDataLoad200");
-        webTestClient
+        client
                 .get()
                 .uri("/api/example/" + safeString(data.get("id"))  + "?filter=" + safeString(data.get("filter")))
                 .header("X-Custom-Header", safeString(data.get("X-Custom-Header")))
                 .header("Authorization", bearerToken)
                 .exchange()
-                .expectStatus().isOk();
+                .expectStatus().isOk()
+                .expectHeader().valueEquals("testName2", "testValue2")
+                .expectHeader().valueEquals("testName1", "testValue1", "testValue11")
+                .expectBody()
+                .jsonPath("$.name").value(Matchers.equalTo("John"))
+                .jsonPath("$.mandatoryField").value(Matchers.notNullValue())
+                .jsonPath("$.age").value(Matchers.instanceOf(Integer.class))
+                .jsonPath("$.score").value(Matchers.greaterThan(10))
+                .jsonPath("$.limit").value(Matchers.lessThan(100))
+                .jsonPath("$.optionalField").value(Matchers.nullValue())
+                .jsonPath("$.message").value(Matchers.containsString("success"))
+                .jsonPath("$.name").value(new IsJohnMatcher())
+                .jsonPath("$.username").value(Matchers.startsWith("user_"))
+                .jsonPath("$.grade").value(Matchers.anyOf(Matchers.equalTo("A"), Matchers.equalTo("B"), Matchers.equalTo("C")))
+                .jsonPath("$.role").value(Matchers.not(Matchers.equalTo("Admin")))
+                .jsonPath("$.email").value(Matchers.endsWith(".com"))
+                .jsonPath("$.roles").value(Matchers.hasItem("admin"));
     }
 
     @Test
-    @Order(2)
     @Timeout(5)
+    @Order(2)
+    @DisplayName("❌ Should return 400 Bad Request when 'id' is 400")
     public void getExample_400() {
         Map<String, Object> data = getData("com.example.demo.data.GetExampleDataLoad400");
         webTestClient
@@ -299,8 +366,9 @@ public class ExampleResourceGeneratedTest {
     }
 
     @Test
-    @Order(3)
     @Timeout(3)
+    @Order(3)
+    @DisplayName("🛡️ Should return 401 Unauthorized when Authorization header is missing")
     public void getExample_401() {
         Map<String, Object> data = getData("com.example.demo.data.GetExampleDataLoad401");
         webTestClient
@@ -312,8 +380,9 @@ public class ExampleResourceGeneratedTest {
     }
 
     @Test
-    @Order(4)
     @Timeout(5)
+    @Order(4)
+    @DisplayName("❌ Should return 404 Not Found when 'id' is 404")
     public void getExample_404() {
         Map<String, Object> data = getData("com.example.demo.data.GetExampleDataLoad404");
         webTestClient
@@ -326,8 +395,9 @@ public class ExampleResourceGeneratedTest {
     }
 
     @Test
-    @Order(5)
     @Timeout(5)
+    @Order(5)
+    @DisplayName("❌ Should return 500 Internal Server Error for unhandled 'id'")
     public void getExample_500() {
         Map<String, Object> data = getData("com.example.demo.data.GetExampleDataLoad500");
         webTestClient
@@ -338,6 +408,7 @@ public class ExampleResourceGeneratedTest {
                 .exchange()
                 .expectStatus().is5xxServerError();
     }
+
 }
 ```
 
@@ -368,12 +439,19 @@ Anotação de nível de classe que ativa a geração automática de testes para 
 
 | Atributo                | Tipo                        | Descrição                                                                   |
 |-------------------------|-----------------------------|------------------------------------------------------------------------------|
-| `displayName`           | `String`                    | Nome descritivo do teste                                                    |
-| `order`                 | `int`                       | Ordem de execução do teste                                                  |
-| `timeout`               | `int`                       | Tempo máximo de execução do teste (segundos)                                |
-| `expectedStatusCode`    | `int`                       | Código HTTP esperado                                                        |
-| `dataProviderClassName` | `String`                    | Nome da classe que implementa `DataLoad` (FQN - opcional)                   |
-| `requiresAuth`          | `boolean`                   | Indica se o teste requer autenticação (`Authorization` será incluído)       |
+| `displayName`           | `String`                    | Nome descritivo do teste, usado em relatórios, logs ou documentação gerada. |
+| `order`                 | `int`                       | Ordem de execução do teste, útil para organizar a sequência dos testes.     |
+| `timeout`               | `int`                       | Tempo máximo de execução do teste (em segundos). Se excedido, o teste falha.|
+| `expectedStatusCode`    | `int`                       | Código HTTP esperado na resposta da API.                                    |
+| `dataProviderClassName` | `String[]`                  | Classe que implementa `DataLoad` para fornecer dados ao teste (opcional).  |
+| `requiresAuth`          | `boolean`                   | Indica se o teste requer autenticação. Quando `true`, cabeçalhos de `Authorization` são incluídos.|
+| `jsonPaths`             | `JsonPath[]`                | Lista de expressões JSONPath e seus valores esperados para validar na resposta da API. |
+| `enableLogging`         | `boolean`                   | Ativa ou desativa o log para o caso de teste. Útil para depuração.          |
+| `expectedHeaders`       | `Header[]`                  | Lista de cabeçalhos HTTP esperados na resposta.                             |
+| `expectedCookies`       | `Cookie[]`                  | Lista de cookies HTTP esperados na resposta.                               |
+| `repeat`                | `int`                       | Número de vezes que o teste será executado consecutivamente.                |
+| `responseTimeoutSeconds`| `long`                      | Tempo máximo de espera pela resposta, em segundos. Override do timeout global, se especificado. |
+
 
 > O Gerador de Testes Kelari suporta endpoints protegidos usando OAuth2/JWT. Basta definir requiresAuth = true em @ApiTestCase e o token será injetado automaticamente.
 ```java
