@@ -285,10 +285,6 @@ public class IsJohnMatcher extends BaseMatcher<String> {
     public void describeTo(Description description) {
         description.appendText("a string equal to 'John'");
     }
-
-    public static Matcher<String> isJohn() {
-        return new IsJohnMatcher();
-    }
 }
 
 ✅ Utilização no Kelari
@@ -501,6 +497,15 @@ webTestClient
 ```
 ---
 
+## 📦 Projeto de Exemplo
+
+Deseja ver um exemplo prático de como utilizar o **Kelari API Test Generator** em uma aplicação Spring Boot?
+
+➡️ Acesse o repositório oficial de exemplo:
+
+**🔗 [kelari-spring-api-test-generator-sample](https://github.com/agsn10/kelari-spring-api-test-generator-sample)**
+> Um projeto demonstrando como integrar o Kelari com controladores Spring e gerar testes automatizados para os endpoints.
+---
 ## 🔍 Tabela Comparativa
 
 A tabela abaixo apresenta uma comparação entre o **Kelari**, o Rest-Assured e o Postman/Newman, destacando os recursos disponíveis em cada ferramenta para testes automatizados de APIs REST:
