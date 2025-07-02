@@ -2,7 +2,6 @@ package io.github.kelari.atg.process;
 
 import com.sun.source.tree.*;
 import com.sun.source.util.TreePath;
-import com.sun.source.util.TreeScanner;
 import com.sun.source.util.Trees;
 import io.github.kelari.atg.annotation.ApiTestSpec;
 import io.github.kelari.atg.annotation.KelariGenerateApiTest;
@@ -17,7 +16,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * {@code KelariTreeScanner} is a custom implementation of {@link TreeScanner} that traverses 
+ * {@code KelariTreeScanner} is a custom implementation of {@link com.sun.source.util.TreeScanner} that traverses
  * the Java Abstract Syntax Tree (AST) to locate classes and methods annotated with
  * {@link KelariGenerateApiTest} and {@link ApiTestSpec}.
  *
@@ -31,13 +30,13 @@ import java.util.Objects;
  * @copyright 2025 Kelari. All rights reserved
  *
  */
-public class KelariTreeScanner extends TreeScanner<Void, Void> implements CompilerLogger {
+public class TreeScanner extends com.sun.source.util.TreeScanner<Void, Void> implements CompilerLogger {
 
     private final Trees trees;
     private CompilationUnitTree compilationUnitTree;
     private List<ClassTest> classTestList;
     private CompilerLogger compilerLogger;
-    private final KelariTreeScannerHelper kelariTreeScannerHelper;
+    //private final KelariTreeScannerHelper kelariTreeScannerHelper;
 
     public void setCompilerLogger(CompilerLogger logger) {
         this.compilerLogger = logger;
@@ -52,10 +51,10 @@ public class KelariTreeScanner extends TreeScanner<Void, Void> implements Compil
      *
      * @param trees the {@code Trees} utility used to obtain information about the AST
      */
-    public KelariTreeScanner(Trees trees) {
+    public TreeScanner(Trees trees) {
         this.trees = trees;
-        this.kelariTreeScannerHelper = KelariTreeScannerHelper.getInstance();
-        this.kelariTreeScannerHelper.setCompilerLogger(this);
+        //this.kelariTreeScannerHelper = KelariTreeScannerHelper.getInstance();
+        //this.kelariTreeScannerHelper.setCompilerLogger(this);
     }
 
     /**
@@ -77,7 +76,7 @@ public class KelariTreeScanner extends TreeScanner<Void, Void> implements Compil
         if(Objects.nonNull(annotation)) {
             log(Diagnostic.Kind.NOTE, "Captured package: " + packageName);
             log(Diagnostic.Kind.NOTE, "Checking class annotation: " + node.getSimpleName().toString());
-            ClassTest classTest = kelariTreeScannerHelper.createClassTest(className, packageName, element);
+            ClassTest classTest = KelariTreeScannerHelper.createClassTest(className, packageName, element);
             for (Tree member : node.getMembers()) {
                 if (member instanceof MethodTree) {
                     MethodTree method = (MethodTree) member;
@@ -86,11 +85,11 @@ public class KelariTreeScanner extends TreeScanner<Void, Void> implements Compil
                     TreePath methodPath = trees.getPath(getCompilationUnitTree(), method);
                     Element methodElement = trees.getElement(methodPath);
                     SpecScenariosTest specScenariosTest = new SpecScenariosTest();
-                    kelariTreeScannerHelper.createSpecScenariosTest(specScenariosTest, methodElement);
-                    kelariTreeScannerHelper.processApiTestSpecAndApiTestCase(specScenariosTest, methodElement);
+                    KelariTreeScannerHelper.createSpecScenariosTest(specScenariosTest, methodElement);
+                    KelariTreeScannerHelper.processApiTestCaseToApiTestSpec(specScenariosTest, methodElement);
                     classTest.put(specScenariosTest.getMethodName(), specScenariosTest);
                     for(CaseTest caseTest : specScenariosTest.getCaseTestList())
-                        caseTest.setMethodParameters(kelariTreeScannerHelper.processMethodParameters(methodElement));
+                        caseTest.setMethodParameters(KelariTreeScannerHelper.processMethodParameters(methodElement));
                 }
             }
             classTestList.add(classTest);

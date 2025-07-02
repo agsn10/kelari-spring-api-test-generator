@@ -1,7 +1,7 @@
 package io.github.kelari.atg.process.handler.expectations;
 
 import com.squareup.javapoet.ClassName;
-import io.github.kelari.atg.annotation.MatcherType;
+import io.github.kelari.atg.annotation.enums.MatcherType;
 import io.github.kelari.atg.model.CaseTest;
 import io.github.kelari.atg.model.JsonPath;
 import io.github.kelari.atg.model.SpecScenariosTest;

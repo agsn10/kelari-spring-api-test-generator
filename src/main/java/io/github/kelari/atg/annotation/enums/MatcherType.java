@@ -1,4 +1,4 @@
-package io.github.kelari.atg.annotation;
+package io.github.kelari.atg.annotation.enums;
 
 /**
  * Defines the types of matchers supported for JSON path assertions in API test cases.

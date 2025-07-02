@@ -71,9 +71,10 @@ public final class Predicates {
      * @see KelariGenerateApiTest
      */
     public static final Predicate<KelariGenerateApiTest> HAS_VALID_AUTH_FIELDS =
-            annotation -> Objects.nonNull(annotation.authUrl()) &&
-                    Objects.nonNull(annotation.password()) &&
-                    Objects.nonNull(annotation.username());
+            annotation -> true;
+                  /*  Objects.nonNull(annotation.auth().authUrl()) &&
+                    Objects.nonNull(annotation.auth().password()) &&
+                    Objects.nonNull(annotation.auth().username()); */
 
     /**
      * Predicate that verifies if the provided {@link ClassTest} contains

@@ -4,8 +4,8 @@ import com.google.auto.service.AutoService;
 import com.sun.source.util.JavacTask;
 import com.sun.source.util.Plugin;
 import com.sun.source.util.Trees;
-import io.github.kelari.atg.listener.KelariTaskListener;
-import io.github.kelari.atg.process.KelariTreeScanner;
+import io.github.kelari.atg.listener.TaskListener;
+import io.github.kelari.atg.process.TreeScanner;
 import io.github.kelari.atg.util.Constants;
 
 /**
@@ -25,8 +25,8 @@ import io.github.kelari.atg.util.Constants;
  *
  * @author <a href="mailto:agsn10@hotmail.com">Antonio Neto</a> [<()>] – Initial implementation.
  * @since 1.0
- * @see KelariTaskListener
- * @see KelariTreeScanner
+ * @see TaskListener
+ * @see TreeScanner
  * @see Constants
  */
 @AutoService(Plugin.class)
@@ -52,7 +52,7 @@ public class KelariGenerateApiTestPlugin implements Plugin {
     @Override
     public void init(JavacTask task, String... args) {
         Trees trees = Trees.instance(task);
-        task.setTaskListener(new KelariTaskListener(task, new KelariTreeScanner(trees)));
+        task.setTaskListener(new TaskListener(task, new TreeScanner(trees)));
     }
 
 }

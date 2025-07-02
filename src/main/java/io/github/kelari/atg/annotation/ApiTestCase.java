@@ -3,35 +3,61 @@ package io.github.kelari.atg.annotation;
 import io.github.kelari.atg.data.DataLoad;
 
 import java.lang.annotation.*;
-import java.time.Duration;
 
 /**
- * Defines the execution goals for an API test, such as execution order,
- * timeout duration, and expected HTTP status codes.
+ * Defines the execution goals and expectations for an individual API test case,
+ * such as order, timeout, authentication requirements, response validations, and metadata checks.
  *
- * <p>This annotation is useful for describing test control parameters,
- * enabling automatic test generation or better test organization
- * in API testing frameworks.</p>
+ * <p>This annotation allows precise control over how a test should be executed and validated,
+ * enabling automation frameworks like <strong>Kelari</strong> to generate, organize and execute
+ * API tests consistently.</p>
  *
- * <p>Example usage:</p>
- * <pre>
- * {@code
+ * <h3>Example usage:</h3>
+ * <pre>{@code
  * @ApiTestCase(
  *     displayName = "🚀 Should create a new customer successfully",
  *     order = 1,
  *     timeout = 5,
- *     expectedStatusCode = HttpURLConnection.HTTP_OK
+ *     expectedStatusCode = HttpURLConnection.HTTP_OK,
+ *     requiresAuth = true,
+ *     jsonPaths = {
+ *         @JsonPath(expression = "$.id", expected = "\\d+"),
+ *         @JsonPath(expression = "$.name", expected = "John Doe")
+ *     }
  * )
- * }
- * </pre>
+ * }</pre>
+ *
+ * <p>Attributes:</p>
+ * <ul>
+ *     <li><b>displayName</b>: Human-readable test name for reports/logs.</li>
+ *     <li><b>order</b>: Execution order within the test suite.</li>
+ *     <li><b>timeout</b>: Time limit for test execution in seconds.</li>
+ *     <li><b>expectedStatusCode</b>: Expected HTTP response code.</li>
+ *     <li><b>dataProviderClassName</b>: Fully qualified name(s) of classes implementing {@link DataLoad} to provide dynamic test data.</li>
+ *     <li><b>requiresAuth</b>: Whether a bearer token is required.</li>
+ *     <li><b>jsonPaths</b>: JSONPath validations against the response body.</li>
+ *     <li><b>enableLogging</b>: Enables verbose logging for the test.</li>
+ *     <li><b>parameterizedTest</b>: Marks the test as parameterized.</li>
+ *     <li><b>expectedHeaders</b>: Expected headers in the response.</li>
+ *     <li><b>expectedCookies</b>: Expected cookies in the response.</li>
+ *     <li><b>repeat</b>: Number of times to repeat the test.</li>
+ *     <li><b>responseTimeoutSeconds</b>: Max duration (in seconds) to wait for the response. Overrides the global timeout if set.</li>
+ *     <li><b>specDescriptor</b>: Descriptive metadata for display or documentation purposes.</li>
+ * </ul>
+ *
+ * @see JsonPath
+ * @see DataLoad
+ * @see Header
+ * @see Cookie
+ * @see SpecDescriptor
  *
  * @author <a href="mailto:agsn10@hotmail.com">Antonio Neto</a> [<()>] – Initial implementation.
  * @since 1.0
  * @copyright 2025 Kelari. All rights reserved.
  */
-@Target(ElementType.METHOD) // Applicable to methods only
-@Retention(RetentionPolicy.RUNTIME) // Retained at runtime
-@Documented // Included in the generated JavaDoc
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
 public @interface ApiTestCase {
 
     /**
@@ -67,10 +93,10 @@ public @interface ApiTestCase {
     int expectedStatusCode() default 0;
 
     /**
-     * Defines a class that will load test data to be used during test execution.
+     * Defines a class or classes that will load test data to be used during test execution.
      * The class must implement the {@link DataLoad} interface.
      *
-     * @return a class implementing {@link DataLoad}, default is empty string (no provider)
+     * @return an array of fully qualified class names that implement {@link DataLoad}
      */
     String[] dataProviderClassName() default {};
 
@@ -104,7 +130,7 @@ public @interface ApiTestCase {
      *
      * @return true if the test is parameterized; false otherwise
      */
-    //boolean parameterizedTest() default false;
+    boolean parameterizedTest() default false;
 
     /**
      * Defines the list of HTTP headers expected to be present in the response.
@@ -137,4 +163,11 @@ public @interface ApiTestCase {
      * @return the response timeout in seconds; -1 means no override
      */
     long responseTimeoutSeconds() default -1;
+
+    /**
+     * Descriptive metadata used for test categorization, grouping, or documentation.
+     *
+     * @return a {@link SpecDescriptor} providing high-level test metadata
+     */
+    SpecDescriptor specDescriptor() default @SpecDescriptor();
 }

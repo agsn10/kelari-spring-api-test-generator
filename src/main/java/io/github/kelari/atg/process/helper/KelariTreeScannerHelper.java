@@ -2,10 +2,9 @@ package io.github.kelari.atg.process.helper;
 
 import io.github.kelari.atg.annotation.ApiTestSpec;
 import io.github.kelari.atg.annotation.KelariGenerateApiTest;
-import io.github.kelari.atg.annotation.MatcherType;
+import io.github.kelari.atg.annotation.enums.MatcherType;
 import io.github.kelari.atg.model.*;
 import io.github.kelari.atg.process.AnnotationMetadataExtractor;
-import io.github.kelari.atg.util.CompilerLogger;
 import io.github.kelari.atg.util.ConditionPipeline;
 import io.github.kelari.atg.util.Constants;
 import io.github.kelari.atg.util.Predicates;
@@ -26,29 +25,7 @@ import java.util.*;
  */
 public final class KelariTreeScannerHelper {
 
-    private CompilerLogger compilerLogger;
-
-    private static final KelariTreeScannerHelper INSTANCE = new KelariTreeScannerHelper();
-
     private KelariTreeScannerHelper() {}
-
-    /**
-     * Returns the singleton instance of {@code KelariTreeScannerHelper}.
-     *
-     * @return singleton instance
-     */
-    public static KelariTreeScannerHelper getInstance() {
-        return INSTANCE;
-    }
-
-    /**
-     * Sets the {@link CompilerLogger} instance to be used for logging.
-     *
-     * @param compilerLogger the logger to use
-     */
-    public void setCompilerLogger(CompilerLogger compilerLogger) {
-        this.compilerLogger = compilerLogger;
-    }
 
     /**
      * Creates a {@link ClassTest} object based on the provided element and annotation metadata.
@@ -58,7 +35,7 @@ public final class KelariTreeScannerHelper {
      * @param element     the annotated element representing the class
      * @return a fully populated {@link ClassTest} instance
      */
-    public ClassTest createClassTest(String className, String packageName, Element element) {
+    public static ClassTest createClassTest(String className, String packageName, Element element) {
         ClassTest classTest = new ClassTest();
         classTest.setName(className.concat("GeneratedTest"));
         classTest.setPackageName(packageName);
@@ -69,14 +46,14 @@ public final class KelariTreeScannerHelper {
             if (Predicates.IS_REQUEST_MAPPING.test(anno))
                 classTest.setPathBase(AnnotationMetadataExtractor.extractUri(anno));
         });
-
-        if (Predicates.HAS_VALID_AUTH_FIELDS.test(annotation)) {
+        
+       /* if (Predicates.HAS_VALID_AUTH_FIELDS.test(annotation)) {
             classTest.setAuthTest(new AuthTest()
-                    .authUrl(annotation.authUrl())
-                    .username(annotation.username())
-                    .password(annotation.password())
-                    .parameterTokenName(annotation.parameterTokenName()));
-        }
+                    .authUrl(annotation.auth().authUrl())
+                    .username(annotation.auth().username())
+                    .password(annotation.auth().password())
+                    .parameterTokenName(annotation.auth().parameterTokenName()));
+        } */
 
         return classTest;
     }
@@ -88,7 +65,7 @@ public final class KelariTreeScannerHelper {
      * @param methodElement the element representing the method
      * @return metadata for method parameters as {@link ParameterMetadataTest}
      */
-    public ParameterMetadataTest processMethodParameters(Element methodElement) {
+    public static ParameterMetadataTest processMethodParameters(Element methodElement) {
         ParameterMetadataTest metadata = new ParameterMetadataTest();
         if (methodElement instanceof ExecutableElement) {
             List<? extends VariableElement> params = ((ExecutableElement) methodElement).getParameters();
@@ -154,7 +131,7 @@ public final class KelariTreeScannerHelper {
      * @param specScenariosTest the object to populate with extracted data
      * @param methodElement     the element representing the annotated method
      */
-    public void createSpecScenariosTest(SpecScenariosTest specScenariosTest, Element methodElement){
+    public static void createSpecScenariosTest(SpecScenariosTest specScenariosTest, Element methodElement){
         specScenariosTest.setMethodName(methodElement.getSimpleName().toString());
         for (AnnotationMirror annotation : methodElement.getAnnotationMirrors()) {
             String annotationName = annotation.getAnnotationType().toString();
@@ -195,7 +172,7 @@ public final class KelariTreeScannerHelper {
      * @param methodElement the method element annotated with {@link ApiTestSpec}
      */
     @SuppressWarnings("unchecked")
-    public void processApiTestSpecAndApiTestCase(SpecScenariosTest spec, Element methodElement) {
+    public static void processApiTestCaseToApiTestSpec(SpecScenariosTest spec, Element methodElement) {
         for (AnnotationMirror annotation : methodElement.getAnnotationMirrors()) {
             if (annotation.getAnnotationType().toString().equals(ApiTestSpec.class.getCanonicalName())) {
                 for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry : annotation.getElementValues().entrySet()) {
@@ -216,10 +193,10 @@ public final class KelariTreeScannerHelper {
                                 AnnotationValue value = presentValues.get(method);
                                 if (value == null)
                                     value = method.getDefaultValue(); // value default
-                                if (value == null) {
+                               /* if (value == null) {
                                     compilerLogger.warning("Null value for field: " + name);
                                     continue;
-                                }
+                                } */
                                 Object fieldValue = value.getValue();
                                 switch (name) {
                                     case Constants.AnnotationFileds.DISPLAY_NAME:
@@ -248,7 +225,7 @@ public final class KelariTreeScannerHelper {
                                         break;
                                     case Constants.AnnotationFileds.JSON_PATHS:
                                         if (fieldValue instanceof List<?> list) {
-                                            List<JsonPath> jsonPaths = new ArrayList<>();
+                                            //List<JsonPath> jsonPaths = new ArrayList<>();
                                             for (Object item : list) {
                                                 if (item instanceof AnnotationValue annotationValue) {
                                                     AnnotationMirror mirror = (AnnotationMirror) annotationValue.getValue();
@@ -275,8 +252,9 @@ public final class KelariTreeScannerHelper {
                                                     caseTest.jsonPaths(new JsonPath(pathVal, matcherType, valueVal, matcherClassVal));
                                                 }
                                             }
-                                        } else
-                                            compilerLogger.warning("Unexpected type for jsonPaths: " + fieldValue.getClass());
+                                        }
+                                        //else
+                                        //    compilerLogger.warning("Unexpected type for jsonPaths: " + fieldValue.getClass());
                                         break;
                                     case Constants.AnnotationFileds.EXPECTED_HEADERS:
                                         if (fieldValue instanceof List<?> list) {
@@ -302,12 +280,13 @@ public final class KelariTreeScannerHelper {
                                                     }
                                                     if (headerName != null && !headerValues.isEmpty())
                                                         caseTest.expectedHeaders(new Header(headerName, headerValues.toArray(new String[0])));
-                                                    else
-                                                        compilerLogger.warning("Missing name or value(s) in expectedHeader.");
+                                                    //else
+                                                    //    compilerLogger.warning("Missing name or value(s) in expectedHeader.");
                                                 }
                                             }
-                                        } else
-                                            compilerLogger.warning("Unexpected type for expectedHeaders: " + fieldValue.getClass());
+                                        }
+                                        //else
+                                        //    compilerLogger.warning("Unexpected type for expectedHeaders: " + fieldValue.getClass());
                                         break;
                                     case Constants.AnnotationFileds.EXPECTED_COOKIES:
                                         if (fieldValue instanceof List<?> list) {
@@ -326,30 +305,30 @@ public final class KelariTreeScannerHelper {
                                                     }
                                                     if (cookieName != null && cookieValue != null)
                                                         caseTest.expectedCookies(new Cookie(cookieName, cookieValue));
-                                                    else
-                                                        compilerLogger.warning("Missing name or value in expectedCookie.");
+                                                    //else
+                                                    //    compilerLogger.warning("Missing name or value in expectedCookie.");
                                                 }
                                             }
-                                        } else
-                                            compilerLogger.warning("Unexpected type for expectedCookies: " + fieldValue.getClass());
+                                        }
+                                        //else
+                                        //    compilerLogger.warning("Unexpected type for expectedCookies: " + fieldValue.getClass());
                                         break;
                                     case Constants.AnnotationFileds.DATA_PROVIDER_CLASS_NAME:
-                                        if (fieldValue instanceof List<?>) {
-                                            List<?> list = (List<?>) fieldValue;
+                                        if (fieldValue instanceof List<?> list) {
                                             if (!list.isEmpty()) {
                                                 Object first = ((AnnotationValue) list.get(0)).getValue();
                                                 if (first instanceof String strVal)
                                                     caseTest.dataProviderClassName(strVal);
-                                                else
-                                                    compilerLogger.warning("Expected String in list for dataProviderClassName, but got: " + first);
+                                                //else
+                                                //    compilerLogger.warning("Expected String in list for dataProviderClassName, but got: " + first);
                                             }
                                         } else if (fieldValue instanceof String strVal)
                                             caseTest.dataProviderClassName(strVal);
-                                          else
-                                            compilerLogger.warning("Unexpected type for dataProviderClassName: " + fieldValue.getClass());
+                                         // else
+                                         //   compilerLogger.warning("Unexpected type for dataProviderClassName: " + fieldValue.getClass());
                                         break;
                                     default:
-                                        compilerLogger.warning("Unknown field: " + name);
+                                        //compilerLogger.warning("Unknown field: " + name);
                                         break;
                                 }
                             }

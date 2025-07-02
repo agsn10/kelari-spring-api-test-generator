@@ -1,6 +1,7 @@
 package io.github.kelari.atg.annotation;
 
 import io.github.kelari.atg.annotation.defaults.DummyMatcher;
+import io.github.kelari.atg.annotation.enums.MatcherType;
 import org.hamcrest.Matcher;
 
 import java.lang.annotation.*;

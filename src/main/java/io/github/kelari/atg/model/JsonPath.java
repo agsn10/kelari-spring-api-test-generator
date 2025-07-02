@@ -1,6 +1,6 @@
 package io.github.kelari.atg.model;
 
-import io.github.kelari.atg.annotation.MatcherType;
+import io.github.kelari.atg.annotation.enums.MatcherType;
 
 public class JsonPath {
 

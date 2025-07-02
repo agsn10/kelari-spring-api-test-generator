@@ -15,9 +15,12 @@ import java.lang.annotation.*;
  * @RestController
  * @RequestMapping("/clients")
  * @KelariGenerateApiTest(
- *     authUrl = "/auth/token",
- *     username = "admin",
- *     password = "123456"
+ *     auth = @AuthConfig(
+ *         authUrl = "/auth/token",
+ *         username = "admin",
+ *         password = "123456"
+ *     ),
+ *     suiteConfig = @SuiteConfig(generate = true, order = 1)
  * )
  * public class ClientController {
  *     ...
@@ -27,40 +30,72 @@ import java.lang.annotation.*;
  * These credentials can be used to authenticate before running test cases
  * and automatically inject the token when {@link ApiTestCase#requiresAuth()} is true.
  *
- * @author <a href="mailto:agsn10@hotmail.com">Antonio Neto</a> [<()>] – Initial implementation.
+ * <p>
+ * The annotation allows you to:
+ * <ul>
+ *     <li>Configure authentication details, such as login credentials for token retrieval.</li>
+ *     <li>Enable or disable the automatic generation of API test cases for the annotated controller.</li>
+ *     <li>Configure test container properties for a more isolated and controlled testing environment.</li>
+ *     <li>Provide SQL scripts for initialization before test execution.</li>
+ *     <li>Configure test suite generation behavior and execution order.</li>
+ * </ul>
+ * </p>
+ *
+ * <p>
+ * The annotation is part of the <strong>Kelari</strong> framework, a tool for automating API test generation.
+ * </p>
+ *
+ * @author <a href="mailto:agsn10@hotmail.com">Antonio Neto</a>
+ *         [<a href="https://github.com/kelari">Kelari</a>] – Initial implementation.
  * @since 1.0
  * @copyright 2025 Kelari. All rights reserved.
  * @see ApiTestSpec
+ * @see ApiTestCase
+ * @see AuthConfig
+ * @see TestContainerConfig
+ * @see SqlScript
+ * @see SuiteConfig
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 public @interface KelariGenerateApiTest {
 
+    boolean enabledAuth() default false;
+
+    boolean enabledTestContainer() default false;
+
+    boolean isolatedTestContainer() default false;
+
+    TestContainerConfig isolatedContainerTestConfig() default @TestContainerConfig;
     /**
-     * Endpoint URL for authentication to obtain the token.
+     * Configuration for report generation.
+     * <p>
+     * This defines whether a report will be generated and its format.
+     * </p>
      *
-     * @return the authentication URL (e.g., "/auth/token")
+     * @return Report generation configuration
      */
-    String authUrl() default "";
+    GenerateReport report() default @GenerateReport();
 
     /**
-     * Username used for authentication.
+     * SQL scripts to execute before running the tests.
+     * <p>
+     * These scripts will be run to initialize the database or the environment for the test.
+     * </p>
      *
-     * @return the username
+     * @return Array of SQL scripts to execute before tests.
      */
-    String username() default "";
+    SqlScript[] sqlScripts() default {};
 
     /**
-     * Password used for authentication.
+     * Configuration for test suite generation and execution order.
+     * <p>
+     * Allows control over whether a test suite should be generated for this controller,
+     * and in what order it should be executed relative to other suites.
+     * </p>
      *
-     * @return the password
+     * @return Suite generation and ordering configuration.
      */
-    String password() default "";
-
-    /**
-     * Name of the JSON field that contains the authentication token.
-     * It will be used as: "$.{parameterTokenName}"
-     */
-    String parameterTokenName() default "token";
+    SuiteConfig suiteConfig() default @SuiteConfig;
 }

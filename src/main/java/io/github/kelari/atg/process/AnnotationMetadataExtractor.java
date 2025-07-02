@@ -57,16 +57,12 @@ public final class AnnotationMetadataExtractor {
         for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry : am.getElementValues().entrySet()) {
             if (entry.getKey().getSimpleName().toString().equals("value")) {
                 Object value = entry.getValue().getValue();
-
                 if (value instanceof List) {
-                    @SuppressWarnings("unchecked")
                     List<? extends AnnotationValue> values = (List<? extends AnnotationValue>) value;
-                    if (!values.isEmpty()) {
+                    if (!values.isEmpty())
                         return sanitizeUri(values.get(0).getValue().toString());
-                    }
-                } else if (value instanceof String) {
+                } else if (value instanceof String)
                     return sanitizeUri((String) value);
-                }
             }
         }
         return "";
@@ -80,9 +76,8 @@ public final class AnnotationMetadataExtractor {
      * @return the sanitized URI
      */
     private static String sanitizeUri(String uri) {
-        if (uri.startsWith("\"") && uri.endsWith("\"")) {
+        if (uri.startsWith("\"") && uri.endsWith("\""))
             uri = uri.substring(1, uri.length() - 1);
-        }
         return uri;
     }
 }

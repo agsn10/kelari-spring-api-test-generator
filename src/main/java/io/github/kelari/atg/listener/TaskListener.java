@@ -6,7 +6,7 @@ import com.sun.source.tree.Tree;
 import com.sun.source.util.*;
 import io.github.kelari.atg.model.ClassTest;
 import io.github.kelari.atg.process.ClassGeneration;
-import io.github.kelari.atg.process.KelariTreeScanner;
+import io.github.kelari.atg.process.TreeScanner;
 import io.github.kelari.atg.util.Predicates;
 
 import javax.lang.model.element.Element;
@@ -15,11 +15,11 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * {@code KelariTaskListener} is a {@link TaskListener} that intercepts the Java compiler's
+ * {@code KelariTaskListener} is a {@link com.sun.source.util.TaskListener} that intercepts the Java compiler's
  * task lifecycle to analyze and collect metadata from source classes in order to
  * generate corresponding test classes.
  *
- * <p>During the {@code ANALYZE} phase, this listener delegates scanning to the {@link KelariTreeScanner},
+ * <p>During the {@code ANALYZE} phase, this listener delegates scanning to the {@link TreeScanner},
  * which processes the compilation unit and populates a shared list of {@link ClassTest} entries.
  * Once compilation is finished, this data is used by {@link ClassGeneration}
  * to generate the corresponding test source files.
@@ -31,9 +31,9 @@ import java.util.List;
  * @copyright 2025 Kelari. All rights reserved.
  *
  */
-public class KelariTaskListener implements TaskListener {
+public class TaskListener implements com.sun.source.util.TaskListener {
 
-    private final KelariTreeScanner kelariTreeScanner;
+    private final TreeScanner treeScanner;
     private final List<ClassTest> classTestList;
     private final JavacTask task;
     private Trees trees;
@@ -41,11 +41,11 @@ public class KelariTaskListener implements TaskListener {
     /**
      * Constructs a new {@code KelariTaskListener} with the provided tree scanner.
      *
-     * @param kelariTreeScanner the scanner responsible for traversing class declarations
+     * @param treeScanner the scanner responsible for traversing class declarations
      *                          and extracting metadata during the compilation process.
      */
-    public KelariTaskListener(JavacTask task, KelariTreeScanner kelariTreeScanner) {
-        this.kelariTreeScanner = kelariTreeScanner;
+    public TaskListener(JavacTask task, TreeScanner treeScanner) {
+        this.treeScanner = treeScanner;
         this.classTestList = Collections.synchronizedList(new ArrayList<>());
         this.task = task;
     }
@@ -64,10 +64,10 @@ public class KelariTaskListener implements TaskListener {
             path = new TreePath(compilationUnit);
             trees = Trees.instance(task);
             // Defining the build tree and test list
-            this.kelariTreeScanner.setCompilationUnitTree(e.getCompilationUnit());
-            this.kelariTreeScanner.setClassTestList(this.classTestList);
+            this.treeScanner.setCompilationUnitTree(e.getCompilationUnit());
+            this.treeScanner.setClassTestList(this.classTestList);
             // Configuring the logger to record messages
-            kelariTreeScanner.setCompilerLogger((kind, msg) ->
+            treeScanner.setCompilerLogger((kind, msg) ->
                     trees.printMessage(kind, msg, path.getLeaf(), path.getCompilationUnit())
             );
             // Processing type (class) declarations within the unit
@@ -76,7 +76,7 @@ public class KelariTaskListener implements TaskListener {
                     Element element = trees.getElement(TreePath.getPath(path, typeDecl));
                     // Scanning classes within the compilation unit
                     if (Predicates.HAS_KELARI_ANNOTATION.test(element)) {
-                        this.kelariTreeScanner.scan(typeDecl, null);
+                        this.treeScanner.scan(typeDecl, null);
                         ClassGeneration kelariClassGeneration = new ClassGeneration(this.classTestList);
                         // Configuring the logger to record messages
                         kelariClassGeneration.setCompilerLogger((kind, msg) ->

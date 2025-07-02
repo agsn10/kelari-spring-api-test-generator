@@ -6,7 +6,7 @@
 
     <groupId>io.github.kelari.atg</groupId>
     <artifactId>kelari-spring-api-test-generator</artifactId>
-    <version>1.1.6</version>
+    <version>2.0.0</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -14,6 +14,14 @@
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
+
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/agsn10/kelari-spring-api-test-generator</url>
+        </repository>
+    </distributionManagement>
 
     <repositories>
         <repository>
@@ -56,6 +64,36 @@
             <artifactId>jackson-databind</artifactId>
             <version>2.19.0</version>
         </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+            <version>2.19.0</version>
+        </dependency>
+
+        <!-- ✅ JUnit 5 (Platform e Jupiter API) -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.2</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <!-- ✅ JUnit Platform Launcher (necessário para usar TestExecutionListener da plataforma) -->
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+            <version>1.10.2</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <!-- ✅ Spring Boot Test (TestExecutionListener do Spring + TestContext) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <version>3.3.4</version>
+            <scope>compile</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
